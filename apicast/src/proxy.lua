@@ -29,6 +29,7 @@ local resty_resolver = require 'resty.resolver'
 local empty = {}
 
 local response_codes = env.enabled('APICAST_RESPONSE_CODES')
+local url_rewriting = env.enabled('APICAST_URL_REWRITING')
 
 local _M = { }
 
@@ -257,6 +258,24 @@ function _M.set_upstream(service)
   ngx.req.set_header('Host', upstream.host or ngx.var.host)
 end
 
+function _M.set_upsteam_by_url(urls)
+  -- Set the first matched rewrite_url (if only one mapping rule is matched, there will be only one)
+  -- This method can be overriden using custom_config to apply a different logic for selecting
+  -- the desired redirect URL if there are several
+  local url = urls[1]
+  url = resty_url.split(url) or empty
+  local scheme = url[1] or 'http'
+  local host, port, path =
+    url[4], url[5] or resty_url.default_port(url[1]), url[6] or ''
+  port = tonumber(port)
+  local uri = scheme .. '://upstream' .. path
+
+  ngx.ctx.upstream = resty_resolver:instance():get_servers(host, { port = port })
+
+  ngx.var.proxy_pass = uri
+  ngx.req.set_header('Host', host or ngx.var.host)
+end
+
 function _M:set_backend_upstream(service)
   service = service or ngx.ctx.service
 
@@ -324,7 +343,14 @@ function _M:access(service)
     return error_no_credentials(service)
   end
 
-  local _, matched_patterns, usage_params = service:extract_usage(request)
+  local _, matched_patterns, usage_params, rewrite_urls = service:extract_usage(request)
+
+  -- Only for URL redirect feature:
+  -- set API upstream and Host header using the rewrite_urls extracted from the mapping rules
+  if url_rewriting then
+    _M.set_upsteam_by_url(rewrite_urls)
+  end
+
   local cached_key = { service.id }
 
   -- remove integer keys for serialization
