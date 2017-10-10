@@ -2,6 +2,11 @@ luarocks {
 
     rockspec 'apicast/apicast-0.1-0.rockspec',
 
+    module { 'liquid' },
+    module { 'argparse' },
+    module { 'ansicolors' },
+    module { 'penlight' },
+
     group 'testing' {
         module { 'busted' },
     },

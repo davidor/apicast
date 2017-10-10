@@ -1,0 +1,6 @@
+#!/usr/bin/env resty
+
+require('rover.setup')()
+-- TODO: move this to rover.setup
+package.path = './apicast/src/?.lua;' .. package.path
+require('apicast.cli')(arg)
